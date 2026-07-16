@@ -121,6 +121,10 @@ const DEFAULT_PORTFOLIO_DATA = {
   ]
 };
 
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '5000'
+  ? 'http://localhost:5000'
+  : '';
+
 const PortfolioContext = React.createContext();
 
 // Admin Styles Injection
@@ -401,7 +405,7 @@ const AdminPanel = ({ onClose }) => {
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch("/api/leads");
+      const res = await fetch(`${API_BASE}/api/leads`);
       if (res.ok) {
         const list = await res.json();
         setLeadsList(list);
@@ -426,7 +430,7 @@ const AdminPanel = ({ onClose }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/login", {
+      const res = await fetch(`${API_BASE}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
@@ -446,7 +450,7 @@ const AdminPanel = ({ onClose }) => {
   const saveConfig = async (updatedData) => {
     setData(updatedData);
     try {
-      const res = await fetch("/api/portfolio-data", {
+      const res = await fetch(`${API_BASE}/api/portfolio-data`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: updatedData })
@@ -801,7 +805,7 @@ const AdminPanel = ({ onClose }) => {
                 <button className="cpanel-btn cpanel-btn-danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={async ()=>{
                   if (confirm("Clear all lead messages?")) {
                     try {
-                      const res = await fetch("/api/leads", { method: "DELETE" });
+                      const res = await fetch(`${API_BASE}/api/leads`, { method: "DELETE" });
                       if (res.ok) {
                         setLeadsList([]);
                       }
@@ -825,7 +829,7 @@ const AdminPanel = ({ onClose }) => {
                       <div style={{ fontSize: "13px", color: "#f1f3f9", background: "rgba(255,255,255,0.02)", padding: "10px", borderRadius: "6px", marginBottom: "6px" }}>{lead.message}</div>
                       <button className="cpanel-action-btn danger" style={{ fontSize: "11.5px", color: "#ef4444" }} onClick={async ()=>{
                         try {
-                          const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+                          const res = await fetch(`${API_BASE}/api/leads/${lead.id}`, { method: "DELETE" });
                           if (res.ok) {
                             setLeadsList(leadsList.filter(l=>l.id !== lead.id));
                           }
@@ -1679,7 +1683,7 @@ const Contact = ({ showToast }) => {
   const onSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/leads", {
+      const res = await fetch(`${API_BASE}/api/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form)
@@ -1748,7 +1752,7 @@ function App() {
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        const res = await fetch("/api/portfolio-data");
+        const res = await fetch(`${API_BASE}/api/portfolio-data`);
         if (res.ok) {
           const data = await res.json();
           setPortfolioData(data);
