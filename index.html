@@ -518,7 +518,9 @@ const AdminPanel = ({ onClose }) => {
   const handleDownload = async () => {
     try {
       const res = await fetch(window.location.href);
-      const text = await res.text();
+      let text = await res.text();
+      // Normalize CRLF to LF to make search robust on Windows/macOS/Linux
+      text = text.replace(/\r\n/g, "\n");
       const query = "const DEFAULT_PORTFOLIO_DATA = {";
       const start = text.indexOf(query);
       const end = text.indexOf("};\n\nconst PortfolioContext =");
@@ -537,7 +539,7 @@ const AdminPanel = ({ onClose }) => {
       const blob = new Blob([newHtml], { type: "text/html" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "portfolio_2.html";
+      a.download = "index.html";
       a.click();
     } catch(err) {
       alert("Error generating HTML: " + err.message);
