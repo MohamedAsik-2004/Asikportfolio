@@ -399,27 +399,64 @@ const AdminPanel = ({ onClose }) => {
   const [projectsList, setProjectsList] = React.useState(JSON.parse(JSON.stringify(data.projects)));
   const [leadsList, setLeadsList] = React.useState([]);
 
-  React.useEffect(() => {
-    injectAdminStyles();
-    setLeadsList(JSON.parse(localStorage.getItem("portfolio_leads") || "[]"));
-    const handleNews = () => setLeadsList(JSON.parse(localStorage.getItem("portfolio_leads") || "[]"));
-    window.addEventListener("portfolio_new_lead", handleNews);
-    return () => window.removeEventListener("portfolio_new_lead", handleNews);
-  }, []);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (username === "admin" && password === "asik2004") {
-      setIsLoggedIn(true);
-      setLoginError("");
-    } else {
-      setLoginError("Invalid Admin Credentials!");
+  const fetchLeads = async () => {
+    try {
+      const res = await fetch("/api/leads");
+      if (res.ok) {
+        const list = await res.json();
+        setLeadsList(list);
+      }
+    } catch(err) {
+      console.error("Error fetching leads:", err);
     }
   };
 
-  const saveConfig = (updatedData) => {
+  React.useEffect(() => {
+    injectAdminStyles();
+    if (isLoggedIn) {
+      fetchLeads();
+    }
+    const handleNews = () => {
+      if (isLoggedIn) fetchLeads();
+    };
+    window.addEventListener("portfolio_new_lead", handleNews);
+    return () => window.removeEventListener("portfolio_new_lead", handleNews);
+  }, [isLoggedIn]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsLoggedIn(true);
+        setLoginError("");
+      } else {
+        setLoginError(data.error || "Invalid Admin Credentials!");
+      }
+    } catch(err) {
+      setLoginError("Login query failed: " + err.message);
+    }
+  };
+
+  const saveConfig = async (updatedData) => {
     setData(updatedData);
-    localStorage.setItem("portfolio_data", JSON.stringify(updatedData));
+    try {
+      const res = await fetch("/api/portfolio-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: updatedData })
+      });
+      if (!res.ok) {
+        console.error("Failed to save portfolio data to database.");
+      }
+    } catch(err) {
+      console.error("Error saving data:", err);
+    }
   };
 
   const handleSaveGeneral = (e) => {
@@ -761,10 +798,16 @@ const AdminPanel = ({ onClose }) => {
             <div className="cpanel-card">
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
                 <div className="cpanel-card-title" style={{ marginBottom: 0 }}>Lead Messages Inbox</div>
-                <button className="cpanel-btn cpanel-btn-danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={()=>{
+                <button className="cpanel-btn cpanel-btn-danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={async ()=>{
                   if (confirm("Clear all lead messages?")) {
-                    localStorage.setItem("portfolio_leads", "[]");
-                    setLeadsList([]);
+                    try {
+                      const res = await fetch("/api/leads", { method: "DELETE" });
+                      if (res.ok) {
+                        setLeadsList([]);
+                      }
+                    } catch(err) {
+                      console.error("Error clearing leads:", err);
+                    }
                   }
                 }}>Clear All</button>
               </div>
@@ -780,10 +823,15 @@ const AdminPanel = ({ onClose }) => {
                       </div>
                       <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Subject: {lead.subject}</div>
                       <div style={{ fontSize: "13px", color: "#f1f3f9", background: "rgba(255,255,255,0.02)", padding: "10px", borderRadius: "6px", marginBottom: "6px" }}>{lead.message}</div>
-                      <button className="cpanel-action-btn danger" style={{ fontSize: "11.5px", color: "#ef4444" }} onClick={()=>{
-                        const next = leadsList.filter(l=>l.id !== lead.id);
-                        localStorage.setItem("portfolio_leads", JSON.stringify(next));
-                        setLeadsList(next);
+                      <button className="cpanel-action-btn danger" style={{ fontSize: "11.5px", color: "#ef4444" }} onClick={async ()=>{
+                        try {
+                          const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+                          if (res.ok) {
+                            setLeadsList(leadsList.filter(l=>l.id !== lead.id));
+                          }
+                        } catch(err) {
+                          console.error("Error deleting lead:", err);
+                        }
                       }}>✕ Delete Message</button>
                     </div>
                   ))
@@ -807,9 +855,9 @@ const AdminPanel = ({ onClose }) => {
                   a.click();
                 }}>Download JSON configuration backup</button>
                 
-                <button className="cpanel-btn cpanel-btn-danger" onClick={()=>{
+                <button className="cpanel-btn cpanel-btn-danger" onClick={async ()=>{
                   if (confirm("Reset to hardcoded defaults? This will erase all your inputs!")) {
-                    saveConfig(DEFAULT_PORTFOLIO_DATA);
+                    await saveConfig(DEFAULT_PORTFOLIO_DATA);
                     window.location.reload();
                   }
                 }}>Reset to hardcoded defaults</button>
@@ -1628,26 +1676,25 @@ const Contact = ({ showToast }) => {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const onChange = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    const newLead = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleString(),
-      name: form.name,
-      email: form.email,
-      subject: form.subject,
-      message: form.message
-    };
     try {
-      const stored = JSON.parse(localStorage.getItem("portfolio_leads") || "[]");
-      stored.unshift(newLead);
-      localStorage.setItem("portfolio_leads", JSON.stringify(stored));
-      window.dispatchEvent(new Event("portfolio_new_lead"));
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form)
+      });
+      if (res.ok) {
+        window.dispatchEvent(new Event("portfolio_new_lead"));
+        showToast("Message sent — I'll get back to you soon!");
+        setForm({ name: "", email: "", subject: "", message: "" });
+      } else {
+        showToast("Error sending message. Please try again.");
+      }
     } catch(err) {
       console.error(err);
+      showToast("Error sending message.");
     }
-    showToast("Message sent — I'll get back to you soon!");
-    setForm({ name: "", email: "", subject: "", message: "" });
   };
   
   return (
@@ -1692,19 +1739,26 @@ const Contact = ({ showToast }) => {
 const SECTION_IDS = ["home", "about", "skills", "certificates", "projects", "contact"];
 
 function App() {
-  const [portfolioData, setPortfolioData] = useState(() => {
-    try {
-      const saved = localStorage.getItem("portfolio_data");
-      if (saved) return JSON.parse(saved);
-    } catch(e) {
-      console.error(e);
-    }
-    return DEFAULT_PORTFOLIO_DATA;
-  });
+  const [portfolioData, setPortfolioData] = useState(DEFAULT_PORTFOLIO_DATA);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [active, setActive] = useState("home");
   const [toast, setToast] = useState({ show: false, msg: "" });
+
+  useEffect(() => {
+    const fetchPortfolioData = async () => {
+      try {
+        const res = await fetch("/api/portfolio-data");
+        if (res.ok) {
+          const data = await res.json();
+          setPortfolioData(data);
+        }
+      } catch(err) {
+        console.error("Error loading portfolio data:", err);
+      }
+    };
+    fetchPortfolioData();
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
