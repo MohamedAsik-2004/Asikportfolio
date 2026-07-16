@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 
 // Default portfolio configuration settings
@@ -216,7 +216,7 @@ app.post('/api/portfolio-data', (req, res) => {
   }
 
   const dataStr = JSON.stringify(data);
-  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('portfolio_data', ?)", [dataStr], function(err) {
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('portfolio_data', ?)", [dataStr], function (err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -245,7 +245,7 @@ app.post('/api/leads', (req, res) => {
 
   db.run("INSERT INTO leads (id, date, name, email, subject, message) VALUES (?, ?, ?, ?, ?, ?)",
     [id, date, name, email, subject, message],
-    function(err) {
+    function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -256,7 +256,7 @@ app.post('/api/leads', (req, res) => {
 
 app.delete('/api/leads/:id', (req, res) => {
   const { id } = req.params;
-  db.run("DELETE FROM leads WHERE id = ?", [id], function(err) {
+  db.run("DELETE FROM leads WHERE id = ?", [id], function (err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -265,7 +265,7 @@ app.delete('/api/leads/:id', (req, res) => {
 });
 
 app.delete('/api/leads', (req, res) => {
-  db.run("DELETE FROM leads", [], function(err) {
+  db.run("DELETE FROM leads", [], function (err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -282,6 +282,8 @@ app.get('*', (req, res) => {
 });
 
 // Start Server
+const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
