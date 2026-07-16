@@ -121,9 +121,7 @@ const DEFAULT_PORTFOLIO_DATA = {
   ]
 };
 
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '5000'
-  ? 'http://localhost:5000'
-  : '';
+// No backend on GitHub Pages — everything is stored client-side in localStorage.
 
 const PortfolioContext = React.createContext();
 
@@ -403,13 +401,10 @@ const AdminPanel = ({ onClose }) => {
   const [projectsList, setProjectsList] = React.useState(JSON.parse(JSON.stringify(data.projects)));
   const [leadsList, setLeadsList] = React.useState([]);
 
-  const fetchLeads = async () => {
+  const fetchLeads = () => {
     try {
-      const res = await fetch(`${API_BASE}/api/leads`);
-      if (res.ok) {
-        const list = await res.json();
-        setLeadsList(list);
-      }
+      const list = JSON.parse(localStorage.getItem("portfolio_leads") || "[]");
+      setLeadsList(list);
     } catch(err) {
       console.error("Error fetching leads:", err);
     }
@@ -427,37 +422,20 @@ const AdminPanel = ({ onClose }) => {
     return () => window.removeEventListener("portfolio_new_lead", handleNews);
   }, [isLoggedIn]);
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setIsLoggedIn(true);
-        setLoginError("");
-      } else {
-        setLoginError(data.error || "Invalid Admin Credentials!");
-      }
-    } catch(err) {
-      setLoginError("Login query failed: " + err.message);
+    if (username === "admin" && password === "asik2004") {
+      setIsLoggedIn(true);
+      setLoginError("");
+    } else {
+      setLoginError("Invalid Admin Credentials!");
     }
   };
 
-  const saveConfig = async (updatedData) => {
+  const saveConfig = (updatedData) => {
     setData(updatedData);
     try {
-      const res = await fetch(`${API_BASE}/api/portfolio-data`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: updatedData })
-      });
-      if (!res.ok) {
-        console.error("Failed to save portfolio data to database.");
-      }
+      localStorage.setItem("portfolio_data", JSON.stringify(updatedData));
     } catch(err) {
       console.error("Error saving data:", err);
     }
@@ -805,10 +783,8 @@ const AdminPanel = ({ onClose }) => {
                 <button className="cpanel-btn cpanel-btn-danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={async ()=>{
                   if (confirm("Clear all lead messages?")) {
                     try {
-                      const res = await fetch(`${API_BASE}/api/leads`, { method: "DELETE" });
-                      if (res.ok) {
-                        setLeadsList([]);
-                      }
+                      localStorage.setItem("portfolio_leads", "[]");
+                      setLeadsList([]);
                     } catch(err) {
                       console.error("Error clearing leads:", err);
                     }
@@ -827,12 +803,11 @@ const AdminPanel = ({ onClose }) => {
                       </div>
                       <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Subject: {lead.subject}</div>
                       <div style={{ fontSize: "13px", color: "#f1f3f9", background: "rgba(255,255,255,0.02)", padding: "10px", borderRadius: "6px", marginBottom: "6px" }}>{lead.message}</div>
-                      <button className="cpanel-action-btn danger" style={{ fontSize: "11.5px", color: "#ef4444" }} onClick={async ()=>{
+                      <button className="cpanel-action-btn danger" style={{ fontSize: "11.5px", color: "#ef4444" }} onClick={()=>{
                         try {
-                          const res = await fetch(`${API_BASE}/api/leads/${lead.id}`, { method: "DELETE" });
-                          if (res.ok) {
-                            setLeadsList(leadsList.filter(l=>l.id !== lead.id));
-                          }
+                          const updated = leadsList.filter(l=>l.id !== lead.id);
+                          localStorage.setItem("portfolio_leads", JSON.stringify(updated));
+                          setLeadsList(updated);
                         } catch(err) {
                           console.error("Error deleting lead:", err);
                         }
@@ -1680,21 +1655,20 @@ const Contact = ({ showToast }) => {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const onChange = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   
-  const onSubmit = async (e) => {
+  const onSubmit = (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/api/leads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) {
-        window.dispatchEvent(new Event("portfolio_new_lead"));
-        showToast("Message sent — I'll get back to you soon!");
-        setForm({ name: "", email: "", subject: "", message: "" });
-      } else {
-        showToast("Error sending message. Please try again.");
-      }
+      const existing = JSON.parse(localStorage.getItem("portfolio_leads") || "[]");
+      const newLead = {
+        id: Date.now().toString(),
+        ...form,
+        date: new Date().toLocaleString()
+      };
+      existing.unshift(newLead);
+      localStorage.setItem("portfolio_leads", JSON.stringify(existing));
+      window.dispatchEvent(new Event("portfolio_new_lead"));
+      showToast("Message sent — I'll get back to you soon!");
+      setForm({ name: "", email: "", subject: "", message: "" });
     } catch(err) {
       console.error(err);
       showToast("Error sending message.");
@@ -1750,18 +1724,14 @@ function App() {
   const [toast, setToast] = useState({ show: false, msg: "" });
 
   useEffect(() => {
-    const fetchPortfolioData = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/portfolio-data`);
-        if (res.ok) {
-          const data = await res.json();
-          setPortfolioData(data);
-        }
-      } catch(err) {
-        console.error("Error loading portfolio data:", err);
+    try {
+      const saved = localStorage.getItem("portfolio_data");
+      if (saved) {
+        setPortfolioData(JSON.parse(saved));
       }
-    };
-    fetchPortfolioData();
+    } catch(err) {
+      console.error("Error loading portfolio data:", err);
+    }
   }, []);
 
   useEffect(() => {
